@@ -1,170 +1,223 @@
 <?php
-require_once __DIR__ . '/weatherclient.php';
+const WEATHER_API = 'https://api.weatherapi.com/v1/forecast.json';
 
-$q = $_GET['q'] ?? '';
-$days = $_GET['days'] ?? 3;
+function tanggalIndo(string $tanggal): string {
+  $bulan = [
+    1 => 'Januari','Februari','Maret','April','Mei','Juni',
+    'Juli','Agustus','September','Oktober','November','Desember'
+  ];
+  $ts = strtotime($tanggal);
+  return date('j', $ts) . ' ' . $bulan[(int)date('n', $ts)] . ' ' . date('Y', $ts);
+}
 
-$client = new WeatherClient();
-$response = null;
-$errorMsg = null;
+function fetchJson(string $url): array {
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_HTTPHEADER => ['Accept: application/json']
+  ]);
 
-if ($q !== '') {
-  $response = $client->getForecast($q, (int)$days);
-  if (isset($response['_error'])) {
-    $errorMsg = $response['_error'];
-  }
+  $body = curl_exec($ch);
+  $err  = curl_error($ch);
+  curl_close($ch);
+
+  if ($err) return ['error' => $err];
+
+  $data = json_decode($body, true);
+  if (!$data) return ['error' => 'Gagal membaca data cuaca'];
+  if (isset($data['error'])) return ['error' => $data['error']['message']];
+
+  return $data;
+}
+
+function getWeather(string $city, int $days): array {
+  $key = getenv('WEATHERAPI_KEY');
+  if (!$key) return ['error' => 'API Key belum diset'];
+
+  $query = http_build_query([
+    'key' => $key,
+    'q' => $city,
+    'days' => $days,
+    'lang' => 'id',
+    'aqi' => 'no',
+    'alerts' => 'no'
+  ]);
+
+  return fetchJson(WEATHER_API . '?' . $query);
+}
+
+$q    = trim($_GET['q'] ?? '');
+$days = (int)($_GET['days'] ?? 3);
+$days = max(3, min(7, $days));
+
+$data = null;
+$error = null;
+
+if ($q) {
+  $data = getWeather($q, $days);
+  if (isset($data['error'])) $error = $data['error'];
 }
 ?>
-
 <!doctype html>
 <html lang="id">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Weather App</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Cuaca</title>
+
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'media' }
+</script>
+
+<style>
+@keyframes fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade {
+  animation: fade .4s ease-out;
+}
+</style>
 </head>
-<body class="bg-slate-50 min-h-screen">
-<div class="max-w-3xl mx-auto p-4">
-<header class="flex items-center justify-between mb-6">
-<h1 class="text-2xl font-bold">🌤️ Weather App</h1>
-<a
-href="https://www.weatherapi.com/"
-target="_blank"
-class="text-sm text-blue-600 hover:underline"
->
-WeatherAPI.com
-</a>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100
+transition-colors duration-300">
+
+<div class="max-w-3xl mx-auto px-4 py-10">
+
+<header class="mb-12">
+<h1 class="text-3xl font-semibold tracking-tight">My Cuaca</h1>
+<p class="text-slate-500 dark:text-slate-400 text-sm mt-1">
+Prakiraan cuaca sederhana
+</p>
 </header>
 
-<?php
-function tanggalIndo(string $tanggal): string {
-  $bulanIndo = [
-    1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-  $ts = strtotime($tanggal);
-  return date('j', $ts) . ' ' . $bulanIndo[(int)date('n', $ts)] . ' ' . date('Y', $ts);
-}
-?>
-
 <!-- FORM -->
-<section class="bg-white rounded-2xl shadow-sm p-5 md:p-6 mb-6">
-<form method="get" class="grid gap-4 md:grid-cols-6 items-end">
-<div class="md:col-span-4">
-<label class="block text-sm font-medium text-slate-700 mb-1">
-Nama Kota
+<form method="get"
+id="weatherForm"
+class="grid gap-6 sm:grid-cols-4 items-end mb-16">
+
+<div class="sm:col-span-2">
+<label class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+Kota
 </label>
 <input
-type="text"
 name="q"
-placeholder="Contoh: Bandung"
 value="<?= htmlspecialchars($q ?: 'Bandung') ?>"
-class="w-full rounded-xl border border-slate-300 px-3 py-2
-focus:outline-none focus:ring-2 focus:ring-blue-500"
+placeholder="Bandung"
 required
-/>
+class="w-full mt-2 bg-transparent border-b border-slate-300
+dark:border-slate-600
+focus:border-blue-600 dark:focus:border-blue-400
+focus:outline-none py-2 transition"
+>
 </div>
 
 <div>
-<label class="block text-sm font-medium text-slate-700 mb-1">Hari</label>
-<input
-type="number"
+<label class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+Hari
+</label>
+<select
 name="days"
-min="1"
-max="10"
-value="<?= (int)$days ?>"
-class="w-full rounded-xl border border-slate-300 px-3 py-2
-focus:outline-none focus:ring-2 focus:ring-blue-500"
-/>
+onchange="document.getElementById('weatherForm').submit()"
+class="w-full mt-2 bg-transparent border-b border-slate-300
+dark:border-slate-600
+focus:border-blue-600 dark:focus:border-blue-400
+focus:outline-none py-2 transition"
+>
+<?php for ($i = 3; $i <= 7; $i++): ?>
+<option value="<?= $i ?>" <?= $days === $i ? 'selected' : '' ?>>
+<?= $i ?> Hari
+</option>
+<?php endfor; ?>
+</select>
 </div>
 
-<div class="md:col-span-6 flex gap-3">
-<button
-type="submit"
-class="flex-1 md:flex-none px-4 py-2 rounded-xl
-bg-blue-600 text-white font-medium
-hover:bg-blue-700 transition"
->
-🔍 Cari
+<button class="text-blue-600 dark:text-blue-400 font-medium
+hover:underline mt-6 sm:mt-0">
+Cari
 </button>
-<a
-href="?"
-class="flex-1 md:flex-none px-4 py-2 rounded-xl
-bg-slate-100 text-slate-700 text-center
-hover:bg-slate-200 transition"
->
-Reset
-</a>
-</div>
 </form>
-</section>
 
-<?php if ($errorMsg): ?>
-<div class="mb-6 p-4 rounded-xl bg-red-50 border border-red-300 text-red-800">
-<strong>Terjadi kesalahan:</strong>
-<?= htmlspecialchars($errorMsg) ?>
-</div>
+<?php if ($error): ?>
+<p class="text-red-600 mb-10 animate-fade">
+<?= htmlspecialchars($error) ?>
+</p>
 <?php endif; ?>
 
-<?php if ($response && !isset($response['_error'])): ?>
-<?php
-$loc = $response['location'];
-$cur = $response['current'];
-$fc  = $response['forecast']['forecastday'];
+<?php if ($data && !$error):
+$loc = $data['location'];
+$cur = $data['current'];
+$fc  = $data['forecast']['forecastday'];
 
-$datetime = strtotime($loc['localtime']);
-$tanggalLokal = tanggalIndo(date('Y-m-d', $datetime));
-$jamLokal = date('H:i', $datetime);
+$ts = strtotime($loc['localtime']);
+
+$icon = match (true) {
+  str_contains($cur['condition']['text'], 'Hujan') => '🌧️',
+  str_contains($cur['condition']['text'], 'Cerah') => '☀️',
+  str_contains($cur['condition']['text'], 'Berawan') => '☁️',
+  default => '🌤️'
+};
 ?>
 
-<!-- CURRENT WEATHER -->
-<section class="bg-white rounded-2xl shadow-sm p-5 md:p-6">
-<h2 class="text-xl font-semibold">
-<?= $loc['name'] ?>, <?= $loc['country'] ?>
+<!-- CURRENT -->
+<section class="mb-20 animate-fade">
+<h2 class="text-3xl font-medium tracking-tight">
+<?= $loc['name'] ?>
+<span class="text-slate-400 dark:text-slate-500 text-lg font-normal">
+, <?= $loc['country'] ?>
+</span>
 </h2>
-<p class="text-sm text-slate-500 mb-4">
-🕒 <?= $tanggalLokal ?> · <?= $jamLokal ?>
+
+<p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+<?= tanggalIndo(date('Y-m-d', $ts)) ?> · <?= date('H:i', $ts) ?>
 </p>
 
-<div class="flex items-center gap-4">
-<div class="text-5xl font-bold">
-<?= round($cur['temp_c']) ?>°C
+<div class="flex items-center gap-6 mt-8">
+<div class="text-6xl font-light tracking-tight">
+<?= $icon ?> <?= round($cur['temp_c']) ?>°
 </div>
-<div class="text-slate-600">
+<div class="text-lg text-slate-600 dark:text-slate-300">
 <?= $cur['condition']['text'] ?>
 </div>
 </div>
 </section>
 
 <!-- FORECAST -->
-<section class="mt-6 bg-white rounded-2xl shadow-sm p-5 md:p-6">
-<h3 class="text-lg font-semibold mb-4">📅 Prakiraan</h3>
-<div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4">
+<section class="animate-fade">
+<h3 class="text-xs uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-6">
+Prakiraan <?= $days ?> Hari
+</h3>
+
+<ul class="space-y-5">
 <?php foreach ($fc as $day): ?>
-<div class="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition">
-<div class="text-sm font-medium">
+<li class="flex items-center justify-between border-b
+border-slate-200 dark:border-slate-700 pb-3">
+<div>
+<div class="font-medium">
 <?= tanggalIndo($day['date']) ?>
 </div>
-<div class="text-slate-600 text-sm mb-2">
+<div class="text-sm text-slate-500 dark:text-slate-400">
 <?= $day['day']['condition']['text'] ?>
 </div>
-<div class="text-sm">
-🌡️ Max: <?= round($day['day']['maxtemp_c']) ?>°C
 </div>
-<div class="text-sm">
-❄️ Min: <?= round($day['day']['mintemp_c']) ?>°C
+
+<div class="text-sm text-slate-600 dark:text-slate-300">
+<?= round($day['day']['mintemp_c']) ?>° / <?= round($day['day']['maxtemp_c']) ?>°
 </div>
-</div>
+</li>
 <?php endforeach; ?>
-</div>
+</ul>
 </section>
+
 <?php endif; ?>
 
-<footer class="text-center text-xs text-slate-500 mt-10">
-Dibuat dengan PHP + WeatherAPI <br>
-Copyright by Kelompok 5.
+<footer class="mt-20 text-xs text-slate-400">
+Powered by WeatherAPI · PHP Native
 </footer>
+
 </div>
 </body>
 </html>
