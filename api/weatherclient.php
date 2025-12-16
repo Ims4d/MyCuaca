@@ -50,7 +50,7 @@ class WeatherClient {
       string $aqi = 'no',
       string $alerts = 'no'
     ): array {
-      $apiKey = $_ENV['WEATHERAPI_KEY'] ?? '';
+      $apiKey = $_ENV['WEATHERAPI_KEY'] ?? getenv('WEATHERAPI_KEY');
       if (!$apiKey) {
         return ['_error' => 'API Key belum diset.'];
       }
