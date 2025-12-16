@@ -1,4 +1,43 @@
 <?php
+require_once __DIR__ . '/weatherclient.php';
+
+$q = $_GET['q'] ?? '';
+$days = $_GET['days'] ?? 3;
+
+$client = new WeatherClient();
+$response = null;
+$errorMsg = null;
+
+if ($q !== '') {
+  $response = $client->getForecast($q, (int)$days);
+  if (isset($response['_error'])) {
+    $errorMsg = $response['_error'];
+  }
+}
+?>
+
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Weather App</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen">
+<div class="max-w-3xl mx-auto p-4">
+<header class="flex items-center justify-between mb-6">
+<h1 class="text-2xl font-bold">🌤️ Weather App</h1>
+<a
+href="https://www.weatherapi.com/"
+target="_blank"
+class="text-sm text-blue-600 hover:underline"
+>
+WeatherAPI.com
+</a>
+</header>
+
+<?php
 function tanggalIndo(string $tanggal): string {
   $bulanIndo = [
     1 => 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -121,3 +160,11 @@ $jamLokal = date('H:i', $datetime);
 </div>
 </section>
 <?php endif; ?>
+
+<footer class="text-center text-xs text-slate-500 mt-10">
+Dibuat dengan PHP + WeatherAPI <br>
+Copyright by Kelompok 5.
+</footer>
+</div>
+</body>
+</html>
